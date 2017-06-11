@@ -1,23 +1,38 @@
 package com.zacguo.androidone;
 
+import android.app.ListActivity;
 import android.content.Context;
+import android.content.Intent;
 import android.os.StrictMode;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.quickconnectfamily.json.JSONException;
+import org.quickconnectfamily.json.JSONInputStream;
+import org.quickconnectfamily.json.JSONOutputStream;
+import org.quickconnectfamily.json.JSONUtilities;
+
 public class MainActivity extends AppCompatActivity {
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,27 +46,21 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
+        try {
+            getWebsiteInfo();
+        } catch (Exception e){
+        }
+
     }
 
-    public void getWebsiteInfo(View view) throws Exception {
-
-        /*
-        titleText to show the title collected from <title> tag
-        descText to show the description from meta.description
-        urlField for the user to input a website url
-         */
-        TextView titleText = (TextView) findViewById(R.id.titleText);
-
-        TextView descText = (TextView) findViewById(R.id.descText);
-
-        EditText urlField = (EditText) findViewById(R.id.urlField);
+    public void getWebsiteInfo() throws Exception {
 
         /*
         Follow codes are pretty much the same as the command line one
         It just the android http request will return mobile version of the websites
         and most of them somehow don't include meta.description
          */
-        URL webpagename = new URL(urlField.getText().toString());
+        URL webpagename = new URL("http://zacguo.com/mormon.json");
 
         // creates the connection to said web page
         HttpURLConnection testconnection = (HttpURLConnection) webpagename.openConnection();
@@ -59,44 +68,40 @@ public class MainActivity extends AppCompatActivity {
         BufferedReader displaydata = new BufferedReader(new InputStreamReader(testconnection.getInputStream()));
         // here is the string object that the data will display in
         String hyperText;
+        String jsonText = "";
         // loop while there is data left and display in the string
         while ((hyperText = displaydata.readLine()) != null) {
-
-            //just to log out the whole html returned from the website.
-            //That's how I know the website will omit the meta.description on the mobile websites
-            Log.d("hyperText",hyperText);
-
-			/*
-			 * Three pattern created to read out the information returned from the website.
-			 * Pattern 1 matches the title tag to output the website title.
-			 * Pattern 2 and 3 matches the description meta tag to output the website description.
-			 * It is possible that websites place the name perimeter before or after the content perimeter.
-			 */
-            Pattern pattern = Pattern.compile("<title>(.*?)</title>");
-            Matcher matcher = pattern.matcher(hyperText);
-            if (matcher.find()) {
-                titleText.setText(matcher.group(1));
-            }
-
-            Pattern pattern2 = Pattern.compile("<meta content=\"(.*?)\" name=\"description\">");
-            Matcher matcher2 = pattern2.matcher(hyperText);
-            if (matcher2.find()) {
-                descText.setText(matcher2.group(1));
-            }
-
-            Pattern pattern3 = Pattern.compile("<meta name=\"description\" content=\"(.*?)\">");
-            Matcher matcher3 = pattern3.matcher(hyperText);
-            if (matcher3.find()) {
-                descText.setText(matcher3.group(1));
-            }
+            jsonText += hyperText;
         }
 
-        /*
-        I got this from https://stackoverflow.com/questions/1109022/close-hide-the-android-soft-keyboard
-        Just to hide the keyboard after the input of the website url.
-         */
-        InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        // initialize a json utility, it will parse the json file read from online and turn it into a hashmap
+        JSONUtilities jsonUtil = new JSONUtilities();
+
+        final HashMap parsedJSONMap = (HashMap) jsonUtil.parse(jsonText);
+
+        //convert ArrayList to Array
+        final String[] bookArray = Arrays.copyOf(parsedJSONMap.keySet().toArray(),parsedJSONMap.keySet().toArray().length,String[].class);
+
+        //setup adapter for the listView
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,R.layout.text_view, bookArray);
+
+        //set adapter to listView
+        ListView mainList = (ListView) findViewById(R.id.mainList);
+        mainList.setAdapter(adapter);
+
+        //setup a on click handler to handle click events, and create new view intent
+        mainList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                Toast.makeText(MainActivity.this,bookArray[position], Toast.LENGTH_SHORT).show();
+                ListActivity aList = new ListActivity();
+
+                Intent intent = new Intent(MainActivity.this, MyListActivity.class);
+                //give the bookName that is clicked, so MyListActivity will use it to list the chapter names
+                intent.putExtra("bookName", bookArray[position]);
+                startActivity(intent);
+            }
+        });
 
     }
 }
